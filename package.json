@@ -1,6 +1,6 @@
 {
   "name": "@substrate-system/multikey",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Encode/decode in multikey format",
   "type": "module",
   "exports": {
