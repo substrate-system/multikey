@@ -6,7 +6,7 @@
 [![semantic versioning](https://img.shields.io/badge/semver-2.0.0-blue?logo=semver&style=flat-square)](https://semver.org/)
 [![Common Changelog](https://nichoth.github.io/badge/common-changelog.svg)](./CHANGELOG.md)
 [![install size](https://flat.badgen.net/packagephobia/install/@substrate-system/multikey)](https://packagephobia.com/result?p=@substrate-system/multikey)
-[![gzip size](https://img.shields.io/bundlephobia/minzip/@substrate-system/multikey?style=flat-square)](https://bundlephobia.com/@substrate-system/name/package/multikey)
+[![gzip size](https://flat.badgen.net/bundlephobia/minzip/@substrate-system/multikey?style=flat-square)](https://bundlephobia.com/package/@substrate-system/multikey)
 [![license](https://img.shields.io/badge/license-Big_Time-blue?style=flat-square)](LICENSE)
 
 
