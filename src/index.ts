@@ -1,4 +1,7 @@
 import { base58btc } from 'multiformats/bases/base58'
+import { webcrypto } from '@substrate-system/one-webcrypto'
+
+const { subtle } = webcrypto
 
 // multicodec code for ed25519-pub is 0xED (237).
 // varint encoding for 237 is two bytes: 0xED 0x01
@@ -10,6 +13,12 @@ const RSA_MULTICODEC_VARINT = Uint8Array.from([0x85, 0x24])
 
 export type KeyType = 'ed25519'|'rsa'
 
+/**
+ * Encode the given Uint8Array to a Multikey string.
+ * @param {Uint8Array} rawKeyBytes The key material
+ * @param {'ed25519'|'rsa'} keyType key algorithm -- RSA or Ed25519
+ * @returns {string} Multikey encoded key string
+ */
 export function encode (
     rawKeyBytes:Uint8Array,
     keyType:KeyType
@@ -32,13 +41,21 @@ export function encode (
 }
 
 /**
+ * Take a CryptoKey instance and convert it to MultiKey format.
+ */
+encode.cryptoKey = async function (key:CryptoKey, alg:KeyType) {
+    const rawKey = await subtle.exportKey('raw', key)
+    return encode(new Uint8Array(rawKey), alg)
+}
+
+/**
  * Decode a Multikey multibase string (ed25519-pub) back to raw key bytes.
- * Returns an object { algCode, rawKey } where algCode is the multicodec
- * numeric code.
+ * Returns an object where `multicodec` is the multicodec
+ * numeric code -- 237 for Ed255519, 4613 for RSA.
  */
 export function decode (multibaseStr:string):{
     multicodec:number,
-    key:Uint8Array<ArrayBufferLike>,
+    key:Uint8Array<ArrayBuffer>,
     type:KeyType|'unknown'
 } {
     // Accept with/without leading 'z'
@@ -68,6 +85,25 @@ export function decode (multibaseStr:string):{
     return {
         multicodec: code,
         key: rawKey,
-        type: type as (KeyType|'unknown')
+        type: type as KeyType|'unknown'
     }
+}
+
+/**
+ * Decode a given string to a CryptoKey instance.
+ *
+ * @param {string} multibaseStr A multikey encoded public key
+ * @returns {CryptoKey} Public key as a `CryptoKey`
+ */
+decode.toCryptoKey = async function (multibaseStr:string):Promise<CryptoKey> {
+    const keyData = decode(multibaseStr)
+    const key = await subtle.importKey(
+        'raw',
+        keyData.key,
+        'ed25519',
+        true,
+        ['verify']
+    )
+
+    return key
 }

@@ -3,10 +3,12 @@ import { webcrypto } from '@substrate-system/one-webcrypto'
 import { encode, decode } from '../src/index.js'
 import { base58btc } from 'multiformats/bases/base58'
 
+const { subtle } = webcrypto
+
 test('encode ed25519 public key to multikey format', async t => {
     // Test with a 32-byte ed25519 public key
     const publicKey = new Uint8Array(32).fill(1)
-    const encoded = encode(publicKey)
+    const encoded = encode(publicKey, 'ed25519')
 
     t.ok(encoded.startsWith('z'), 'should start with z prefix')
     t.ok(encoded.length > 32, 'should be longer than raw key')
@@ -14,7 +16,7 @@ test('encode ed25519 public key to multikey format', async t => {
 
 test('decode multikey format back to raw key', async t => {
     const publicKey = new Uint8Array(32).fill(1)
-    const encoded = encode(publicKey)
+    const encoded = encode(publicKey, 'ed25519')
     const decoded = decode(encoded)
 
     t.equal(decoded.multicodec, 237, 'should have ed25519-pub multicodec (237)')
@@ -32,7 +34,7 @@ test('encode/decode round trip preserves data', async t => {
     ]
 
     for (const key of testKeys) {
-        const encoded = encode(key)
+        const encoded = encode(key, 'ed25519')
         const decoded = decode(encoded)
         t.deepEqual(decoded.key, key, 'round trip should preserve key bytes')
         t.equal(decoded.multicodec, 237, 'should preserve multicodec')
@@ -41,7 +43,7 @@ test('encode/decode round trip preserves data', async t => {
 
 test('decode accepts multikey with or without z prefix', async t => {
     const publicKey = new Uint8Array(32).fill(42)
-    const encoded = encode(publicKey)
+    const encoded = encode(publicKey, 'ed25519')
 
     // With 'z' prefix
     const decoded1 = decode(encoded)
@@ -61,8 +63,8 @@ test('different keys produce different encodings', async t => {
     const key1 = new Uint8Array(32).fill(1)
     const key2 = new Uint8Array(32).fill(2)
 
-    const encoded1 = encode(key1)
-    const encoded2 = encode(key2)
+    const encoded1 = encode(key1, 'ed25519')
+    const encoded2 = encode(key2, 'ed25519')
 
     t.notEqual(encoded1, encoded2,
         'different keys should produce different encodings')
@@ -70,15 +72,15 @@ test('different keys produce different encodings', async t => {
 
 test('encoded format is consistent', async t => {
     const publicKey = new Uint8Array(32).fill(123)
-    const encoded1 = encode(publicKey)
-    const encoded2 = encode(publicKey)
+    const encoded1 = encode(publicKey, 'ed25519')
+    const encoded2 = encode(publicKey, 'ed25519')
 
     t.equal(encoded1, encoded2, 'encoding same key should be deterministic')
 })
 
 test('handles all zero key', async t => {
     const zeroKey = new Uint8Array(32).fill(0)
-    const encoded = encode(zeroKey)
+    const encoded = encode(zeroKey, 'ed25519')
     const decoded = decode(encoded)
 
     t.deepEqual(decoded.key, zeroKey, 'should handle all-zero key')
@@ -87,7 +89,7 @@ test('handles all zero key', async t => {
 
 test('handles all 0xFF key', async t => {
     const maxKey = new Uint8Array(32).fill(255)
-    const encoded = encode(maxKey)
+    const encoded = encode(maxKey, 'ed25519')
     const decoded = decode(encoded)
 
     t.deepEqual(decoded.key, maxKey, 'should handle all-0xFF key')
@@ -96,7 +98,7 @@ test('handles all 0xFF key', async t => {
 
 test('encoded multikey has expected structure', async t => {
     const publicKey = new Uint8Array(32).fill(100)
-    const encoded = encode(publicKey)
+    const encoded = encode(publicKey, 'ed25519')
     const decoded = decode(encoded)
 
     // Verify the multicodec prefix is present
@@ -113,7 +115,7 @@ test('encoded multikey has expected structure', async t => {
 
 test('decode extracts correct raw key from varint-prefixed data', async t => {
     const publicKey = crypto.getRandomValues(new Uint8Array(32))
-    const encoded = encode(publicKey)
+    const encoded = encode(publicKey, 'ed25519')
     const decoded = decode(encoded)
 
     // The raw key should not include the varint prefix
@@ -140,7 +142,7 @@ test('encode real ed25519 public key generated with webcrypto', async t => {
     t.equal(publicKey.length, 32, 'ed25519 public key should be 32 bytes')
 
     // Encode to multikey format
-    const encoded = encode(publicKey)
+    const encoded = encode(publicKey, 'ed25519')
 
     // Verify structure
     t.ok(encoded.startsWith('z'), 'should start with z prefix')
@@ -153,7 +155,7 @@ test('encode real ed25519 public key generated with webcrypto', async t => {
     t.deepEqual(decoded.key, publicKey, 'should decode to original key')
 
     // Verify the encoded string matches the expected multikey format
-    const reencoded = encode(publicKey)
+    const reencoded = encode(publicKey, 'ed25519')
     t.equal(encoded, reencoded, 'encoding should be deterministic')
 })
 
@@ -242,6 +244,31 @@ test('decode returns unknown type for unrecognized multicodec', async t => {
     t.equal(decoded.type, 'unknown', 'should have type unknown for unrecognized multicodec')
     t.equal(decoded.multicodec, 999, 'should have multicodec 999')
     t.deepEqual(decoded.key, keyBytes, 'should decode key bytes correctly')
+})
+
+test('decode to CryptoKey', async t => {
+    const keypair = await subtle.generateKey(
+        { name: 'Ed25519' },
+        true,
+        ['sign', 'verify']
+    )
+    const publicKeyBytes = await subtle.exportKey('raw', keypair.publicKey)
+    const encoded = encode(new Uint8Array(publicKeyBytes), 'ed25519')
+    const decoded = await decode.toCryptoKey(encoded)
+
+    t.ok(decoded instanceof CryptoKey, 'should return a new CryptoKey')
+})
+
+test('encode from CryptoKey', async t => {
+    const keypair = await subtle.generateKey(
+        { name: 'Ed25519' },
+        true,
+        ['sign', 'verify']
+    )
+
+    const str = await encode.cryptoKey(keypair.publicKey, 'ed25519')
+    t.equal(typeof str, 'string', 'should return a string')
+    t.ok(str.startsWith('z6Mk'), 'should have the right prefix')
 })
 
 test('all done', () => {
